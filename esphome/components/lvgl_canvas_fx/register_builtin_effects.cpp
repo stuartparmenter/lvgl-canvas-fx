@@ -6,8 +6,7 @@
 
 // include each effect's header
 #include "fx_circle.h"
-// #include "plasma/fx_plasma.h"
-// #include "noise/fx_noise.h"
+#include "fx_fireplace.h"
 
 namespace esphome {
 namespace lvgl_canvas_fx {
@@ -18,9 +17,9 @@ void register_builtin_effects() {
     return std::make_unique<FxCircle>();
   });
 
-  // Add more:
-  // FxRegistry::register_factory("plasma", []{ return std::make_unique<FxPlasma>(); });
-  // FxRegistry::register_factory("noise",  []{ return std::make_unique<FxNoise>();  });
+  FxRegistry::register_factory("fireplace", []{
+    return std::make_unique<FxFireplace>();
+  });
 }
 
 }  // namespace lvgl_canvas_fx
