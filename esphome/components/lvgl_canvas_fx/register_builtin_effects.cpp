@@ -7,6 +7,7 @@
 // include each effect's header
 #include "fx_circle.h"
 #include "fx_fireplace.h"
+#include "fx_fireworks_physics.h"
 
 namespace esphome {
 namespace lvgl_canvas_fx {
@@ -20,6 +21,11 @@ void register_builtin_effects() {
   FxRegistry::register_factory("fireplace", []{
     return std::make_unique<FxFireplace>();
   });
+
+  FxRegistry::register_factory("fireworks", []{
+    return std::make_unique<FxFireworksPhysics>();
+  });
+
 }
 
 }  // namespace lvgl_canvas_fx
