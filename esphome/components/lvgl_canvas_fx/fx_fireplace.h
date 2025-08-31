@@ -4,6 +4,7 @@
 #pragma once
 #include "fx_base.h"
 #include <vector>
+#include "esphome/core/helpers.h"
 
 extern "C" {
   #include <lvgl.h>
@@ -36,7 +37,8 @@ class FxFireplace : public FxBase {
   void draw_frame_();           // write to canvas buffer
 
   int W_{0}, H_{0};
-  std::vector<uint8_t> heat_;   // size = W_*H_, values 0..36
+  using HeatVec = std::vector<uint8_t, esphome::RAMAllocator<uint8_t>>;
+  HeatVec heat_;                // size = W_*H_, values 0..36
   lv_color_t palette_[37]{};    // precomputed
 };
 

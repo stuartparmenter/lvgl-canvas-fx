@@ -22,7 +22,7 @@ void FxFireplace::on_resize(const Rect &r) {
     heat_.clear();
     return;
   }
-  heat_.assign((size_t)W_ * (size_t)H_, 0);
+  heat_.assign(static_cast<size_t>(W_) * static_cast<size_t>(H_), 0);
   build_palette_();
 }
 
