@@ -15,10 +15,10 @@ DEPENDENCIES = ["lvgl"]
 ns = cg.esphome_ns.namespace("lvgl_canvas_fx")
 
 LvglCanvasFx = ns.class_("LvglCanvasFx", cg.PollingComponent)
-PauseAction   = ns.class_("PauseAction", automation.Action)
-ResumeAction  = ns.class_("ResumeAction", automation.Action)
-ToggleAction  = ns.class_("ToggleAction", automation.Action)
-SetFpsAction  = ns.class_("SetFpsAction", automation.Action)
+PauseAction  = ns.class_("PauseAction",  automation.Action)
+ResumeAction = ns.class_("ResumeAction", automation.Action)
+ToggleAction = ns.class_("ToggleAction", automation.Action)
+SetFpsAction = ns.class_("SetFpsAction", automation.Action)
 
 CONF_FX = "lvgl_canvas_fx"
 CONF_EFFECT = "effect"
@@ -48,26 +48,35 @@ CONFIG_SCHEMA = cv.All(cv.ensure_list(ITEM_SCHEMA))
 
 @automation.register_action("lvgl_canvas_fx.pause", PauseAction, cv.Schema({ cv.Required(CONF_ID): cv.use_id(LvglCanvasFx) }))
 async def pause_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id); tgt = await cg.get_variable(config[CONF_ID])
-    cg.add(var.set_target(tgt)); return var
+    var = cg.new_Pvariable(action_id)
+    tgt = await cg.get_variable(config[CONF_ID])
+    cg.add(var.set_target(tgt))
+    return var
 
 @automation.register_action("lvgl_canvas_fx.resume", ResumeAction, cv.Schema({ cv.Required(CONF_ID): cv.use_id(LvglCanvasFx) }))
 async def resume_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id); tgt = await cg.get_variable(config[CONF_ID])
-    cg.add(var.set_target(tgt)); return var
+    var = cg.new_Pvariable(action_id)
+    tgt = await cg.get_variable(config[CONF_ID])
+    cg.add(var.set_target(tgt))
+    return var
 
 @automation.register_action("lvgl_canvas_fx.toggle", ToggleAction, cv.Schema({ cv.Required(CONF_ID): cv.use_id(LvglCanvasFx) }))
 async def toggle_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id); tgt = await cg.get_variable(config[CONF_ID])
-    cg.add(var.set_target(tgt)); return var
+    var = cg.new_Pvariable(action_id)
+    tgt = await cg.get_variable(config[CONF_ID])
+    cg.add(var.set_target(tgt))
+    return var
 
 @automation.register_action("lvgl_canvas_fx.set_fps", SetFpsAction, cv.Schema({
     cv.Required(CONF_ID): cv.use_id(LvglCanvasFx),
     cv.Required(CONF_FPS): cv.float_range(min=1.0, max=240.0),
 }))
 async def setfps_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id); tgt = await cg.get_variable(config[CONF_ID])
-    cg.add(var.set_target(tgt)); cg.add(var.set_fps(config[CONF_FPS])); return var
+    var = cg.new_Pvariable(action_id)
+    tgt = await cg.get_variable(config[CONF_ID])
+    cg.add(var.set_target(tgt))
+    cg.add(var.set_fps(config[CONF_FPS]))
+    return var
 
 async def to_code(config):
     # Generate the component instances

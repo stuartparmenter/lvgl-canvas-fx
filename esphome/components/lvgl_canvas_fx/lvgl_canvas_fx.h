@@ -72,39 +72,35 @@ class LvglCanvasFx : public PollingComponent {
 };
 
 // -------- Automation actions (per-instance) --------
-template<typename... Ts>
-class PauseAction : public Action<Ts...> {
+class PauseAction : public Action<> {
  public:
   void set_target(LvglCanvasFx* t){ t_ = t; }
-  void play(Ts...) override { if (t_) t_->pause(); }
+  void play() override { if (t_) t_->pause(); }
  private:
   LvglCanvasFx* t_{nullptr};
 };
 
-template<typename... Ts>
-class ResumeAction : public Action<Ts...> {
+class ResumeAction : public Action<> {
  public:
   void set_target(LvglCanvasFx* t){ t_ = t; }
-  void play(Ts...) override { if (t_) t_->resume(); }
+  void play() override { if (t_) t_->resume(); }
  private:
   LvglCanvasFx* t_{nullptr};
 };
 
-template<typename... Ts>
-class ToggleAction : public Action<Ts...> {
+class ToggleAction : public Action<> {
  public:
   void set_target(LvglCanvasFx* t){ t_ = t; }
-  void play(Ts...) override { if (t_) t_->toggle(); }
+  void play() override { if (t_) t_->toggle(); }
  private:
   LvglCanvasFx* t_{nullptr};
 };
 
-template<typename... Ts>
-class SetFpsAction : public Action<Ts...> {
+class SetFpsAction : public Action<> {
  public:
   void set_target(LvglCanvasFx* t){ t_ = t; }
   void set_fps(float f){ fps_ = f; }
-  void play(Ts...) override { if (t_) t_->set_fps(fps_); }
+  void play() override { if (t_) t_->set_fps(fps_); }
  private:
   LvglCanvasFx* t_{nullptr};
   float fps_{30.0f};
