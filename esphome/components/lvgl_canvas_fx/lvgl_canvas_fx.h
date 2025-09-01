@@ -48,6 +48,7 @@ class LvglCanvasFx : public PollingComponent {
   void set_initial_period(uint32_t ms) { period_ms_ = ms; if (running_) this->set_update_interval(period_ms_); }
   void set_fps(float fps);
   void set_paused_period_ms(uint32_t ms) { paused_period_ms_ = ms; if (!running_) this->set_update_interval(paused_period_ms_); }
+  void set_effect(const std::string &key);
 
  protected:
   struct Area { int x{0}, y{0}, w{0}, h{0}; };
@@ -125,6 +126,23 @@ class SetFpsAction : public Action<> {
  private:
   LvglCanvasFx* t_{nullptr};
   float fps_{30.0f};
+};
+
+template<typename... Ts>
+class SetEffectAction : public Action<Ts...> {
+ public:
+  void set_target(LvglCanvasFx* t){ t_ = t; }
+
+  // One source of truth: templatable string named "effect"
+  TEMPLATABLE_VALUE(std::string, effect)
+
+  void play(Ts... x) override {
+    if (!t_) return;
+    const std::string key = this->effect_.value(x...);
+    if (!key.empty()) t_->set_effect(key);
+  }
+ private:
+  LvglCanvasFx* t_{nullptr};
 };
 
 }  // namespace lvgl_canvas_fx

@@ -19,6 +19,7 @@ PauseAction  = ns.class_("PauseAction",  automation.Action)
 ResumeAction = ns.class_("ResumeAction", automation.Action)
 ToggleAction = ns.class_("ToggleAction", automation.Action)
 SetFpsAction = ns.class_("SetFpsAction", automation.Action)
+SetEffectAction = ns.class_("SetEffectAction", automation.Action)
 
 CONF_FX = "lvgl_canvas_fx"
 CONF_EFFECT = "effect"
@@ -76,6 +77,18 @@ async def setfps_to_code(config, action_id, template_arg, args):
     tgt = await cg.get_variable(config[CONF_ID])
     cg.add(var.set_target(tgt))
     cg.add(var.set_fps(config[CONF_FPS]))
+    return var
+
+@automation.register_action("lvgl_canvas_fx.set_effect", SetEffectAction, cv.Schema({
+    cv.Required(CONF_ID): cv.use_id(LvglCanvasFx),
+    cv.Required(CONF_EFFECT): cv.templatable(cv.string),
+}))
+async def seteffect_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    tgt = await cg.get_variable(config[CONF_ID])
+    cg.add(var.set_target(tgt))
+    tmpl = await cg.templatable(config[CONF_EFFECT], args, cg.std_string)
+    cg.add(var.set_effect(tmpl))
     return var
 
 async def to_code(config):

@@ -57,6 +57,14 @@ void LvglCanvasFx::setup() {
   });
 }
 
+void LvglCanvasFx::set_effect(const std::string &key) {
+  if (key == effect_key_) return;
+  effect_key_ = key;
+  fx_.reset();         // drop old instance
+  rebind_ = true;      // ensure ensure_bound_() runs next update
+  ESP_LOGI("lvgl_canvas_fx", "Effect changed to '%s'; will rebind", effect_key_.c_str());
+}
+
 bool LvglCanvasFx::read_canvas_size_(uint16_t &w, uint16_t &h) {
   if (!canvas_ || !lv_obj_is_valid(canvas_)) return false;
   lv_obj_update_layout(canvas_);
@@ -108,8 +116,8 @@ void LvglCanvasFx::update() {
   const bool have_size = this->read_canvas_size_(cw, ch);
 
   if (rebind_) {
-    rebind_ = false;
     if (!this->ensure_bound_()) return;
+    rebind_ = false;
     last_w_ = cw; last_h_ = ch;
   } else if (have_size && (cw != last_w_ || ch != last_h_)) {
     last_w_ = cw; last_h_ = ch;
