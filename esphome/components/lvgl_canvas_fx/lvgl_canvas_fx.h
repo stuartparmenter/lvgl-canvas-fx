@@ -18,6 +18,10 @@ extern "C" {
   #include <lvgl.h>
 }
 
+#ifndef LVGL_CANVAS_FX_METRICS
+#define LVGL_CANVAS_FX_METRICS 1
+#endif
+
 namespace esphome {
 namespace lvgl_canvas_fx {
 
@@ -69,6 +73,23 @@ class LvglCanvasFx : public PollingComponent {
   uint32_t period_ms_{33};
   uint32_t paused_period_ms_{500};
   uint64_t last_us_{0};
+
+#if LVGL_CANVAS_FX_METRICS
+  // ---- Metrics window (printed every ~5s) ----
+  struct {
+    uint64_t window_start_us{0};
+    uint64_t last_tick_us{0};      // end-of-update timestamp
+    uint32_t frames{0};
+    uint64_t step_us_sum{0};
+    uint32_t step_us_max{0};
+    uint64_t loop_us_sum{0};
+    uint32_t loop_us_max{0};
+    uint32_t overruns{0};
+  } m_{};
+
+  static constexpr uint32_t METRICS_PERIOD_MS = 5000;
+  void metrics_log_and_roll_(uint64_t now_us);
+#endif
 };
 
 // -------- Automation actions (per-instance) --------

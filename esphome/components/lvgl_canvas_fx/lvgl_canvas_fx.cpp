@@ -49,6 +49,11 @@ void LvglCanvasFx::setup() {
   this->set_timeout(jitter_ms, [this, active_period]() {
     last_us_ = esp_timer_get_time();
     this->set_update_interval(active_period);
+#if LVGL_CANVAS_FX_METRICS
+    // Initialize metrics window on first schedule
+    m_.window_start_us = last_us_;
+    m_.last_tick_us    = last_us_;
+#endif
   });
 }
 
@@ -112,7 +117,34 @@ void LvglCanvasFx::update() {
   }
 
   if (!fx_) return;
+  // Measure the effect step() duration
+#if LVGL_CANVAS_FX_METRICS
+  const uint64_t t0 = esp_timer_get_time();
+#endif
+
   fx_->step(dt);
+
+#if LVGL_CANVAS_FX_METRICS
+  const uint64_t t1 = esp_timer_get_time();
+  const uint32_t step_us = static_cast<uint32_t>(t1 - t0);
+
+  // Loop interval (tick-to-tick), using end-of-previous update
+  const uint32_t loop_us = static_cast<uint32_t>(t1 - m_.last_tick_us);
+  m_.last_tick_us = t1;
+
+  // Aggregate window stats
+  m_.frames++;
+  m_.step_us_sum += step_us;
+  m_.loop_us_sum += loop_us;
+  m_.step_us_max  = std::max(m_.step_us_max, step_us);
+  m_.loop_us_max  = std::max(m_.loop_us_max, loop_us);
+  if (step_us / 1000.0f > static_cast<float>(period_ms_)) m_.overruns++;
+
+  // Periodic log/roll
+  if (t1 - m_.window_start_us >= (uint64_t)METRICS_PERIOD_MS * 1000ULL) {
+    metrics_log_and_roll_(t1);
+  }
+#endif
 }
 
 void LvglCanvasFx::dump_config() {
@@ -121,7 +153,41 @@ void LvglCanvasFx::dump_config() {
     "LvglCanvasFx(%p): effect='%s' area=[%d,%d %dx%d] canvas=%ux%u period=%ums paused=%ums running=%s",
     this, effect_key_.c_str(), area_.x, area_.y, area_.w, area_.h,
     cw, ch, period_ms_, paused_period_ms_, running_ ? "true" : "false");
+#if LVGL_CANVAS_FX_METRICS
+  ESP_LOGCONFIG("lvgl_canvas_fx", "Metrics: enabled (period=%ums)", METRICS_PERIOD_MS);
+#else
+  ESP_LOGCONFIG("lvgl_canvas_fx", "Metrics: disabled (LVGL_CANVAS_FX_METRICS=0)");
+#endif
 }
+
+#if LVGL_CANVAS_FX_METRICS
+void LvglCanvasFx::metrics_log_and_roll_(uint64_t now_us) {
+  if (m_.frames == 0) {
+    m_.window_start_us = now_us;
+    return;
+  }
+  const double win_s        = (now_us - m_.window_start_us) / 1e6;
+  const double target_fps   = (period_ms_ > 0) ? (1000.0 / period_ms_) : 0.0;
+  const double effective_fps= m_.frames / win_s;
+  const double avg_step_ms  = (m_.step_us_sum / 1000.0) / m_.frames;
+  const double avg_loop_ms  = (m_.loop_us_sum / 1000.0) / m_.frames;
+
+  ESP_LOGD("lvgl_canvas_fx",
+           "[metrics] eff=%.2ffps tgt=%.2ffps frames=%u "
+           "step(avg/max)=%.3f/%.3f ms loop(avg/max)=%.3f/%.3f ms overruns=%u",
+           effective_fps, target_fps, m_.frames,
+           avg_step_ms, m_.step_us_max / 1000.0,
+           avg_loop_ms, m_.loop_us_max / 1000.0,
+           m_.overruns);
+
+  // Roll the window
+  m_.window_start_us = now_us;
+  m_.frames = 0;
+  m_.step_us_sum = 0;  m_.step_us_max = 0;
+  m_.loop_us_sum = 0;  m_.loop_us_max = 0;
+  m_.overruns = 0;
+}
+#endif
 
 }  // namespace lvgl_canvas_fx
 }  // namespace esphome
