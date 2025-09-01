@@ -46,23 +46,6 @@ void FxFireworksPhysics::free_body_(cpBody* b) {
   cpBodyFree(b);
 }
 
-void FxFireworksPhysics::draw_px_rect_(int x, int y, uint8_t px, lv_color_t color) {
-  if (!canvas_) return;
-  const int W = lv_obj_get_width(canvas_), H = lv_obj_get_height(canvas_);
-  if (x >= W || y >= H || x + (int)px <= 0 || y + (int)px <= 0) return;
-
-  const int sx = (x < 0) ? 0 : x;
-  const int sy = (y < 0) ? 0 : y;
-  const int ex = std::min(W, x + (int)px);
-  const int ey = std::min(H, y + (int)px);
-
-  lv_draw_rect_dsc_t d; lv_draw_rect_dsc_init(&d);
-  d.bg_color   = color;
-  d.bg_opa     = LV_OPA_COVER;
-  d.border_opa = LV_OPA_TRANSP;
-  lv_canvas_draw_rect(canvas_, sx, sy, ex - sx, ey - sy, &d);
-}
-
 // -------------------- space / items --------------------
 void FxFireworksPhysics::create_space_() {
   if (space_) return;
@@ -82,6 +65,18 @@ void FxFireworksPhysics::clear_items_() {
 // -------------------- size-aware parameterization --------------------
 void FxFireworksPhysics::recompute_params_() {
   if (H_ == 0) return;
+
+  // Density scaling: compare area to 64x64 baseline, clamp to [0.25..1.0]
+  const float area = (float)W_ * (float)H_;
+  const float base_area = 64.0f * 64.0f;
+  const float area_scale = base_area / std::max(area, base_area); // <= 1
+  density_scale_ = std::max(0.25f, std::min(1.0f, area_scale * density_target_));
+
+  // Auto fade cadence for big canvases
+  // ~<= 64k px => every frame, ~>128k px => every other, ~>256k px => every 3rd
+  if (area <= 64.0f * 64.0f)      fade_every_n_ = 1;
+  else if (area <= 128.0f * 128.0f) fade_every_n_ = 2;
+  else                              fade_every_n_ = 3;
 
   // Gravity proportional to height → consistent look across sizes.
   // Baseline ~180 px/s^2 at 64px tall ⇒ ≈ 2.8125 * H
@@ -108,6 +103,70 @@ void FxFireworksPhysics::recompute_params_() {
   // Fragment speeds scale with launch speed → consistent diameter
   frag_speed_min_      = 0.55f * v0;
   frag_speed_max_      = 0.95f * v0;
+}
+
+// -------------------- fast canvas view --------------------
+void FxFireworksPhysics::refresh_canvas_view_() {
+  img_ = (const lv_img_dsc_t*) lv_canvas_get_img(canvas_);
+  buf_ = nullptr; stride_bytes_ = 0; fmt_ = BufFmt::FMT_NONE;
+  if (!img_ || !img_->data || W_ <= 0 || H_ <= 0) return;
+
+  if (img_->header.cf == LV_IMG_CF_TRUE_COLOR) {
+#if LV_COLOR_DEPTH == 16
+    fmt_ = BufFmt::FMT_565;
+    buf_ = (uint8_t*) img_->data;
+    stride_bytes_ = W_ * (int)sizeof(lv_color_t);
+#elif LV_COLOR_DEPTH == 32
+    fmt_ = BufFmt::FMT_32;
+    buf_ = (uint8_t*) img_->data;
+    stride_bytes_ = W_ * (int)sizeof(lv_color_t);
+#else
+    fmt_ = BufFmt::FMT_NONE;
+#endif
+  }
+}
+
+inline void FxFireworksPhysics::put_px_(int x, int y, lv_color_t c) {
+  if (!canvas_ready_()) return;
+  if ((unsigned)x >= (unsigned)W_ || (unsigned)y >= (unsigned)H_) return;
+  auto* row = reinterpret_cast<lv_color_t*>(buf_ + y * stride_bytes_);
+  row[x] = c;  // honors LV_COLOR_*_SWAP implicitly
+}
+
+void FxFireworksPhysics::clear_black_fast_() {
+  if (!canvas_ready_()) return;
+  // For TRUE_COLOR (565/32bpp), black is all zeros in lv_color_t memory
+  memset(buf_, 0x00, (size_t)stride_bytes_ * H_);
+}
+
+void FxFireworksPhysics::fade_to_black_fast_(uint8_t opa) {
+  if (!canvas_ready_()) return;
+  if (opa == LV_OPA_TRANSP) return;
+  if (opa >= LV_OPA_COVER) { clear_black_fast_(); return; }
+
+  const uint8_t a = (uint8_t)(255u - (uint32_t)opa);
+
+#if LV_COLOR_DEPTH == 16 && !(defined(LV_COLOR_16_SWAP) && LV_COLOR_16_SWAP)
+  // Fast path only when 565 is not byte-swapped.
+  uint16_t* p = reinterpret_cast<uint16_t*>(buf_);
+  const size_t n = (size_t)W_ * H_;
+  for (size_t i = 0; i < n; i++) {
+    uint16_t c = p[i];
+    uint32_t r = (c >> 11) & 0x1F;
+    uint32_t g = (c >>  5) & 0x3F;
+    uint32_t b =  c        & 0x1F;
+    r = (r * a + 127) >> 8;
+    g = (g * a + 127) >> 8;
+    b = (b * a + 127) >> 8;
+    p[i] = (uint16_t)((r << 11) | (g << 5) | b);
+  }
+#else
+  // Swap-safe generic path (works for 565+swap and 32-bit).
+  auto* row = reinterpret_cast<lv_color_t*>(buf_);
+  const size_t n = (size_t)W_ * H_;
+  const lv_color_t black = lv_color_black();
+  for (size_t i = 0; i < n; i++) row[i] = lv_color_mix(black, row[i], a);
+#endif
 }
 
 // -------------------- spawning / bursting --------------------
@@ -140,7 +199,7 @@ FxFireworksPhysics::BodyRef* FxFireworksPhysics::spawn_core_(float cx, float cy,
   BodyRef* core = new BodyRef();
   core->is_rocket = true;
   core->born_ms   = now_ms();
-  core->fuse_ms   = (uint32_t)frand_(0.85f, 1.15f) * (burst_t_min_ms_ + burst_t_max_ms_)/2;
+  core->fuse_ms   = (uint32_t)(frand_(0.85f, 1.15f) * (float)((burst_t_min_ms_ + burst_t_max_ms_) / 2));
   core->life_ms   = life_ms;
   core->px        = px;
   core->color     = lv_color_white();
@@ -166,10 +225,12 @@ FxFireworksPhysics::BurstKind FxFireworksPhysics::pick_burst_kind_() {
   return BurstKind::CROSSETTE;
 }
 
+// N.B. counts are scaled by density_scale_
 void FxFireworksPhysics::burst_peony_(int cx, int cy, bool chrys) {
   bool accent = (frand_(0,1) < 1.0f/6.0f);
   lv_color_t base = accent ? pick_accent_() : pick_warm_();
-  const int   n   = 20 + (int)frand_(0,18);
+  int   n   = 20 + (int)frand_(0,18);
+  n = std::max(6, (int)std::round(n * density_scale_));
   const float s0  = frand_(frag_speed_min_*0.8f, frag_speed_max_*0.85f);
   const int   life= chrys ? (1100 + (int)frand_(0,600)) : (800 + (int)frand_(0,400));
   for (int i=0;i<n;i++) {
@@ -185,7 +246,8 @@ void FxFireworksPhysics::burst_peony_(int cx, int cy, bool chrys) {
 void FxFireworksPhysics::burst_ring_(int cx, int cy) {
   bool accent = (frand_(0,1) < 0.33f);
   lv_color_t base = accent ? pick_accent_() : pick_warm_();
-  const int   n   = 26 + (int)frand_(0,16);
+  int   n   = 26 + (int)frand_(0,16);
+  n = std::max(8, (int)std::round(n * density_scale_));
   const float s   = frand_(frag_speed_min_*0.9f, frag_speed_max_*0.9f);
   const int   life= 850 + (int)frand_(0,450);
   for (int i=0;i<n;i++) {
@@ -200,6 +262,7 @@ void FxFireworksPhysics::burst_starN_(int cx, int cy, int N) {
   for (int i=0;i<N;i++) {
     float a = (2.0f * (float)M_PI * i) / N;
     int rays = 3 + (int)frand_(0,1);
+    rays = std::max(2, (int)std::round(rays * density_scale_));
     for (int k=0;k<rays;k++) {
       float t = 0.55f + 0.18f * k; // 55%, 73%, 91%
       spawn_particle_((float)cx, (float)cy, cosf(a)*s*t, sinf(a)*s*t, base, 1, (uint32_t)life);
@@ -209,7 +272,8 @@ void FxFireworksPhysics::burst_starN_(int cx, int cy, int N) {
 }
 void FxFireworksPhysics::burst_palm_(int cx, int cy) {
   lv_color_t base = pick_warm_();
-  const int fronds = 8 + (int)frand_(0,6);
+  int fronds = 8 + (int)frand_(0,6);
+  fronds = std::max(4, (int)std::round(fronds * density_scale_));
   const int life   = 1000 + (int)frand_(0,500);
   for (int i=0;i<fronds;i++) {
     float spread = (35.0f * (float)M_PI/180.0f);
@@ -220,7 +284,8 @@ void FxFireworksPhysics::burst_palm_(int cx, int cy) {
 }
 void FxFireworksPhysics::burst_willow_(int cx, int cy) {
   lv_color_t base = pick_warm_();
-  const int   n   = 18 + (int)frand_(0,10);
+  int   n   = 18 + (int)frand_(0,10);
+  n = std::max(6, (int)std::round(n * density_scale_));
   const float s   = frand_(frag_speed_min_*0.65f, frag_speed_min_*0.85f);
   const int   life= 1600 + (int)frand_(0,800);
   for (int i=0;i<n;i++) {
@@ -231,7 +296,8 @@ void FxFireworksPhysics::burst_willow_(int cx, int cy) {
 }
 void FxFireworksPhysics::burst_crossette_(int cx, int cy) {
   lv_color_t base = pick_warm_();
-  const int   n   = 10 + (int)frand_(0,6);
+  int   n   = 10 + (int)frand_(0,6);
+  n = std::max(4, (int)std::round(n * density_scale_));
   const float s   = frand_(frag_speed_min_*0.9f, frag_speed_min_*1.2f);
   const int   life= 1100 + (int)frand_(0,300);
   for (int i=0;i<n;i++) {
@@ -288,7 +354,10 @@ void FxFireworksPhysics::handle_rocket_bursts_(uint32_t tnow) {
 }
 
 void FxFireworksPhysics::maybe_spawn_(uint32_t tnow) {
-  if (inflight_ >= MAX_INFLIGHT) return;
+  // Effective MAX_INFLIGHT scaled by density (>=1 becomes 1, never zero)
+  const uint8_t max_inflight = std::max<uint8_t>(1, (uint8_t)std::round(3.0f * density_scale_));
+  if (inflight_ >= max_inflight) return;
+
   const uint32_t scaled_gap = std::max<uint32_t>(
       MIN_SPAWN_GAP_MS,
       (burst_t_min_ms_ + burst_t_max_ms_) / 3  // ~0.33 * time-to-apex
@@ -302,11 +371,48 @@ void FxFireworksPhysics::maybe_spawn_(uint32_t tnow) {
   last_spawn_ms_ = tnow;
 }
 
-// -------------------- draw / cull --------------------
+// -------------------- draw --------------------
+void FxFireworksPhysics::draw_px_rect_(int x, int y, uint8_t px, lv_color_t color) {
+  // Fast path: direct writes
+  if (canvas_ready_()) {
+    const int W = static_cast<int>(W_);
+    const int H = static_cast<int>(H_);
+    if (x >= W || y >= H || x + (int)px <= 0 || y + (int)px <= 0) return;
+    const int sx = (x < 0) ? 0 : x;
+    const int sy = (y < 0) ? 0 : y;
+    const int ex = std::min(W, x + (int)px);
+    const int ey = std::min(H, y + (int)px);
+    for (int yy = sy; yy < ey; ++yy) {
+      for (int xx = sx; xx < ex; ++xx) put_px_(xx, yy, color);
+    }
+    return;
+  }
+
+  // Fallback: original LVGL draw (should rarely hit)
+  if (!canvas_) return;
+  const int W = lv_obj_get_width(canvas_), H = lv_obj_get_height(canvas_);
+  if (x >= W || y >= H || x + (int)px <= 0 || y + (int)px <= 0) return;
+
+  const int sx = (x < 0) ? 0 : x;
+  const int sy = (y < 0) ? 0 : y;
+  const int ex = std::min(W, x + (int)px);
+  const int ey = std::min(H, y + (int)px);
+
+  lv_draw_rect_dsc_t d; lv_draw_rect_dsc_init(&d);
+  d.bg_color   = color;
+  d.bg_opa     = LV_OPA_COVER;
+  d.border_opa = LV_OPA_TRANSP;
+  lv_canvas_draw_rect(canvas_, sx, sy, ex - sx, ey - sy, &d);
+}
+
+// -------------------- frame --------------------
 void FxFireworksPhysics::render_() {
   if (!canvas_ || W_ == 0 || H_ == 0) return;
-  // Trails / motion blur
-  lv_canvas_fill_bg(canvas_, lv_color_black(), fade_opa_);
+
+  // Trails / motion blur (skip according to fade_every_n_)
+  if ((fade_tick_++ % fade_every_n_) == 0) {
+    fade_to_black_fast_(fade_opa_);
+  }
 
   for (auto* br : items_) {
     if (!br || !br->body) continue;
@@ -340,7 +446,9 @@ void FxFireworksPhysics::cull_and_free_() {
 // -------------------- FxBase hooks --------------------
 void FxFireworksPhysics::on_bind(lv_obj_t* canvas) {
   FxBase::on_bind(canvas);
+  if (canvas_) lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_COVER);
   create_space_();
+  refresh_canvas_view_();
 }
 
 void FxFireworksPhysics::on_resize(const Rect &r) {
@@ -351,10 +459,8 @@ void FxFireworksPhysics::on_resize(const Rect &r) {
   clear_items_();
   if (!canvas_ || W_ <= 0 || H_ <= 0) return;
 
-  // Ensure ESPHome's canvas already has a buffer
-  const lv_img_dsc_t* img = (const lv_img_dsc_t*) lv_canvas_get_img(canvas_);
-  if (!img || !img->data) return;
-
+  refresh_canvas_view_();
+  if (!canvas_ready_()) return;
   lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_COVER);
   create_space_();
   recompute_params_();

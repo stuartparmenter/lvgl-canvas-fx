@@ -1,5 +1,6 @@
 // © Copyright 2025 Stuart Parmenter
 // SPDX-License-Identifier: MIT
+
 #pragma once
 #include "fx_base.h"
 
@@ -24,15 +25,19 @@ class FxFireworksPhysics : public FxBase {
   void on_resize(const Rect &r) override;
   void step(float dt) override;
 
+  // Optional runtime knobs (safe to ignore if you prefer the auto-tuning)
+  void set_fade_every_n(uint8_t n) { fade_every_n_ = (n == 0) ? 1 : n; }
+  // density_target in [0..1]; 1.0 = original density at 64x64, smaller lowers shard counts on large canvases
+  void set_density_target(float s) { density_target_ = s; recompute_params_(); }
+
  private:
-  // ---------- Tunables (mirroring the original) ----------
+  // ---------- Tunables (baseline) ----------
   static constexpr uint8_t  TRAIL_FADE_OPA   = 32;    // lower = longer trails
   static constexpr uint32_t TICK_MS          = 33;    // ~30 FPS
   static constexpr int      CULL_MARGIN      = 2;
   static constexpr uint32_t HARD_TTL_MS      = 3200;
   static constexpr uint32_t SOFT_TTL_PAD_MS  = 800;
   static constexpr uint32_t MIN_SPAWN_GAP_MS = 300;
-  static constexpr uint8_t  MAX_INFLIGHT     = 3;
 
   // ---------- Small helpers ----------
   static inline uint32_t now_ms() { return lv_tick_get(); }
@@ -64,6 +69,14 @@ class FxFireworksPhysics : public FxBase {
   // tick accumulator (to keep fixed physics step)
   float acc_ms_{0.0f};
 
+  // Canvas view cache (fast path)
+  enum class BufFmt : uint8_t { FMT_NONE, FMT_565, FMT_32 };
+  const lv_img_dsc_t* img_{nullptr};
+  uint8_t* buf_{nullptr};
+  int      stride_bytes_{0};
+  BufFmt   fmt_{BufFmt::FMT_NONE};
+  inline bool canvas_ready_() const { return canvas_ && img_ && buf_ && stride_bytes_ > 0 && fmt_ != BufFmt::FMT_NONE; }
+
   // Size-aware parameters (recomputed on resize)
   float    grav_px_s2_{180.0f};   // px/s^2
   float    launch_vy_min_{-220.0f};
@@ -73,6 +86,15 @@ class FxFireworksPhysics : public FxBase {
   uint32_t burst_t_max_ms_{950};
   float    frag_speed_min_{55.0f};
   float    frag_speed_max_{85.0f};
+
+  // Density auto-scaling
+  // density_scale_ is applied to: number of shards per burst, and effective MAX_INFLIGHT
+  float density_scale_{1.0f};      // computed from area vs 64x64
+  float density_target_{1.0f};     // user override (multiplier, clamp [0.25..1.0])
+
+  // Fading cadence
+  uint8_t fade_every_n_{1};
+  uint8_t fade_tick_{0};
 
   // ---------- Impl pieces ----------
   void create_space_();
@@ -85,6 +107,13 @@ class FxFireworksPhysics : public FxBase {
 
   static float frand_(float a, float b);
 
+  // Fast canvas API
+  void refresh_canvas_view_();
+  void clear_black_fast_();                 // memset clear (both 565 & 32-bit)
+  void fade_to_black_fast_(uint8_t opa);    // fast fade (565 bit-math / 32-bit mix)
+  inline void put_px_(int x, int y, lv_color_t c);
+
+  // Drawing & frame
   void draw_px_rect_(int x, int y, uint8_t px, lv_color_t color);
   void render_();
   void cull_and_free_();
