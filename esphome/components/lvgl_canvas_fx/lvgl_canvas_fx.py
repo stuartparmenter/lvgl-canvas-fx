@@ -6,6 +6,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.components import lvgl
+from esphome.components.esp32 import add_idf_component
 from esphome import automation
 from esphome.core import CORE
 from pathlib import Path
@@ -111,3 +112,5 @@ async def to_code(config):
             item[CONF_W], item[CONF_H],
             item[CONF_START_PAUSED]
         ))
+
+    add_idf_component(name="espressif/esp-dsp", ref="1.7.0")
