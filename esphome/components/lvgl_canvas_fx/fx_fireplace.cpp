@@ -24,6 +24,8 @@ void FxFireplace::on_resize(const Rect &r) {
   }
   heat_.assign(static_cast<size_t>(W_) * static_cast<size_t>(H_), 0);
   build_palette_();
+
+  if (canvas_) lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_COVER);
 }
 
 void FxFireplace::build_palette_() {
@@ -53,6 +55,9 @@ void FxFireplace::build_palette_() {
     uint8_t g = lerp8(K[si][1], K[si+1][1], tt);
     uint8_t b = lerp8(K[si][2], K[si+1][2], tt);
     palette_[i] = lv_color_make(r, g, b);
+#if LV_COLOR_DEPTH == 16
+    pal16_[i] = palette_[i].full;  // exact in-memory 565 (swap honored)
+#endif
   }
 }
 
@@ -120,9 +125,39 @@ void FxFireplace::draw_frame_() {
   // Access canvas buffer
   const lv_img_dsc_t* img = (const lv_img_dsc_t*) lv_canvas_get_img(canvas_);
   if (!img || !img->data) return;
+  // Keep a typed view for the log painter below (used in both paths)
   auto* buf = (lv_color_t*) img->data;
 
-  // Map each heat cell (0..36) to a palette color
+#if LV_COLOR_DEPTH == 16
+  // Fast path: 565 writes in 32-bit chunks.
+  // pal16_[i] already matches LVGL’s in-memory 565 (handles LV_COLOR_16_SWAP).
+  uint8_t* base = (uint8_t*)img->data;
+  for (int y = 0; y < H_; ++y) {
+    const int iy = y * W_;
+    uint16_t* row16 = (uint16_t*)(base + (size_t)iy * sizeof(lv_color_t));
+    int n = W_;
+    int x = 0;
+    // Head align to 32-bit boundary if needed
+    if ((((uintptr_t)row16) & 0x2) && n) {
+      uint16_t c = pal16_[(int)heat_[iy + x]];
+      *row16++ = c; x++; n--;
+    }
+    uint32_t* row32 = (uint32_t*)row16;
+    // Bulk: two pixels per 32-bit store
+    while (n >= 2) {
+      const uint16_t c0 = pal16_[(int)heat_[iy + x    ]];
+      const uint16_t c1 = pal16_[(int)heat_[iy + x + 1]];
+      *row32++ = (uint32_t)c0 | ((uint32_t)c1 << 16);
+      x += 2; n -= 2;
+    }
+    // Tail
+    if (n) {
+      uint16_t* tail16 = (uint16_t*)row32;
+      *tail16 = pal16_[(int)heat_[iy + x]];
+    }
+  }
+#else
+  // Generic path (e.g., 32-bit)
   for (int y = 0; y < H_; ++y) {
     int iy = y * W_;
     for (int x = 0; x < W_; ++x) {
@@ -131,6 +166,7 @@ void FxFireplace::draw_frame_() {
       buf[iy + x] = palette_[idx];
     }
   }
+#endif
 
   // --- “LOG” LINE AT THE BOTTOM ---
   // Always draw a 2-pixel strip of brownish pixels at the base

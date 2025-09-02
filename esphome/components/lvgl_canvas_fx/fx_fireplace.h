@@ -40,6 +40,9 @@ class FxFireplace : public FxBase {
   using HeatVec = std::vector<uint8_t, esphome::RAMAllocator<uint8_t>>;
   HeatVec heat_;                // size = W_*H_, values 0..36
   lv_color_t palette_[37]{};    // precomputed
+  // Fast-path cache: raw 16-bit words exactly as LVGL stores them in memory.
+  // Works for both normal and LV_COLOR_16_SWAP layouts.
+  uint16_t pal16_[37]{};
 };
 
 }  // namespace lvgl_canvas_fx
