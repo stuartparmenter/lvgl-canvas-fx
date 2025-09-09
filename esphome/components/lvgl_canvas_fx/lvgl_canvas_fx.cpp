@@ -57,6 +57,11 @@ void LvglCanvasFx::setup() {
   });
 }
 
+// ---------- Data ingress ----------
+void LvglCanvasFx::submit_data(const void* data, size_t bytes) {
+  if (fx_) fx_->on_data(data, bytes);
+}
+
 void LvglCanvasFx::set_effect(const std::string &key) {
   if (key == effect_key_) return;
   effect_key_ = key;

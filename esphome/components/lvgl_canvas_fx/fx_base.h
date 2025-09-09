@@ -6,6 +6,8 @@ extern "C" {
     #include <lvgl.h>
 }
 
+#include <cstddef>
+
 namespace esphome {
 namespace lvgl_canvas_fx {
 
@@ -19,6 +21,9 @@ class FxBase {
 
   // Called whenever the tracked sub-rect or canvas size changes
   virtual void on_resize(const Rect &r) { area_ = r; }
+
+  // Optional: generic data ingress (buffer valid only during the call)
+  virtual void on_data(const void* data, size_t bytes) { (void)data; (void)bytes; }
 
   // Called every tick (dt in seconds)
   virtual void step(float dt) = 0;

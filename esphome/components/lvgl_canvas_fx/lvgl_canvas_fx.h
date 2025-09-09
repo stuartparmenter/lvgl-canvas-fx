@@ -44,6 +44,10 @@ class LvglCanvasFx : public PollingComponent {
   void toggle() { running_ ? pause() : resume(); }
   bool is_running() const { return running_; }
 
+  // ---- Data ingress ----
+  // Submit arbitrary bytes to the active effect (if any).
+  void submit_data(const void* data, size_t bytes);
+
   // Per-instance timing
   void set_initial_period(uint32_t ms) { period_ms_ = ms; if (running_) this->set_update_interval(period_ms_); }
   void set_fps(float fps);
