@@ -2,7 +2,7 @@
 
 An ESPHome external component that renders fun, high‑performance visual effects on an **LVGL Canvas**. It’s designed for ESP32‑class devices (ESPHome 2025.x, LVGL v8) and works with any LVGL‑backed display (HUB75 matrices, TFTs, etc.).
 
-> **Status:** early but functional. Effects today: `circle`, `fireworks`, `fireplace`. Contributions welcome!
+> **Status:** early but functional. Effects today: `circle`, `fireworks`, `fireplace`, `aurora`, `audio_spectrum`. Contributions welcome!
 
 ---
 
