@@ -31,6 +31,7 @@ class LvglCanvasFx : public PollingComponent {
   void setup() override;
   void update() override;
   void dump_config() override;
+  float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }
 
   // Codegen wiring: on 2025.8.2 pass the raw lv_obj_t* (not LvCompound*)
   void setup_binding(lv_obj_t* canvas_obj,
