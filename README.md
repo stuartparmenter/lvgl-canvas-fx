@@ -11,13 +11,11 @@ An ESPHome external component that renders fun, high‑performance visual effect
 - **Multiple effects** with easy runtime switching via `lvgl_canvas_fx.set_effect`.
 - **Tunable FPS**: With an ESP32-S3, currently on 64×64 you can reach ~60 FPS, on 128×64 closer to 30 FPS, and on 800×480 around 7 FPS. Depends a good bit on your display.
 - **Pausing/resuming** to save cycles when a page is hidden.
-- **Physics‑based fireworks** powered by Chipmunk2D (via `chipmunk2d-esphome`).
+- **Physics‑based fireworks** powered by Chipmunk2D.
 
 ## Requirements
 - **ESPHome:** 2025.8.x or newer
-- **LVGL:** v8 (ESPHome’s built‑in LVGL integration)
-- **Chipmunk2D external component** (for physics effects):
-  - `github://stuartparmenter/chipmunk2d-esphome@v0.1.0`
+- **LVGL:** v8 (ESPHome's built‑in LVGL integration)
 
 ## Quick start (full example)
 The example below wires up a Canvas, the effect engine, and a template `select` so you can switch effects at runtime. It also pauses the effect when the page is not visible.
@@ -30,9 +28,6 @@ substitutions:
 external_components:
   - source: github://stuartparmenter/lvgl-canvas-fx@main
     components: [lvgl_canvas_fx]
-  # chipmunk2d-esphome is also required by lvgl-canvas-fx
-  - source: github://stuartparmenter/chipmunk2d-esphome@v0.1.0
-    components: [chipmunk2d]
 
 select:
   - platform: template
