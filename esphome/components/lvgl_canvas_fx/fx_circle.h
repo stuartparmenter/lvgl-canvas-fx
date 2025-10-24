@@ -5,7 +5,7 @@
 #include "fx_base.h"
 
 extern "C" {
-  #include <lvgl.h>
+#include <lvgl.h>
 }
 
 namespace esphome {
@@ -18,7 +18,7 @@ namespace lvgl_canvas_fx {
 
 class FxCircle : public FxBase {
  public:
-  void on_bind(lv_obj_t* canvas) override;
+  void on_bind(lv_obj_t *canvas) override;
   void on_resize(const Rect &r) override;
   void step(float dt) override;
 

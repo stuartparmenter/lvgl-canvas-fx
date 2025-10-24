@@ -6,7 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/automation.h"   // ← must be included before subclassing Action<>
+#include "esphome/core/automation.h"  // ← must be included before subclassing Action<>
 
 #include <memory>
 #include <string>
@@ -15,7 +15,7 @@
 #include "fx_registry.h"
 
 extern "C" {
-  #include <lvgl.h>
+#include <lvgl.h>
 }
 
 #ifndef LVGL_CANVAS_FX_METRICS
@@ -34,36 +34,51 @@ class LvglCanvasFx : public PollingComponent {
   float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }
 
   // Codegen wiring: on 2025.8.2 pass the raw lv_obj_t* (not LvCompound*)
-  void setup_binding(lv_obj_t* canvas_obj,
-                     const std::string &effect_key,
-                     int x, int y, int w, int h,
+  void setup_binding(lv_obj_t *canvas_obj, const std::string &effect_key, int x, int y, int w, int h,
                      bool start_paused);
 
   // Runtime control
-  void pause()  { running_ = false; this->set_update_interval(paused_period_ms_); }
-  void resume() { running_ = true;  this->set_update_interval(period_ms_); rebind_ = true; }
+  void pause() {
+    running_ = false;
+    this->set_update_interval(paused_period_ms_);
+  }
+  void resume() {
+    running_ = true;
+    this->set_update_interval(period_ms_);
+    rebind_ = true;
+  }
   void toggle() { running_ ? pause() : resume(); }
   bool is_running() const { return running_; }
 
   // ---- Data ingress ----
   // Submit arbitrary bytes to the active effect (if any).
-  void submit_data(const void* data, size_t bytes);
+  void submit_data(const void *data, size_t bytes);
 
   // Per-instance timing
-  void set_initial_period(uint32_t ms) { period_ms_ = ms; if (running_) this->set_update_interval(period_ms_); }
+  void set_initial_period(uint32_t ms) {
+    period_ms_ = ms;
+    if (running_)
+      this->set_update_interval(period_ms_);
+  }
   void set_fps(float fps);
-  void set_paused_period_ms(uint32_t ms) { paused_period_ms_ = ms; if (!running_) this->set_update_interval(paused_period_ms_); }
+  void set_paused_period_ms(uint32_t ms) {
+    paused_period_ms_ = ms;
+    if (!running_)
+      this->set_update_interval(paused_period_ms_);
+  }
   void set_effect(const std::string &key);
 
  protected:
-  struct Area { int x{0}, y{0}, w{0}, h{0}; };
+  struct Area {
+    int x{0}, y{0}, w{0}, h{0};
+  };
 
   bool ensure_bound_();
   bool read_canvas_size_(uint16_t &w, uint16_t &h);
   void on_canvas_size_change_();
 
   // Bound canvas & effect
-  lv_obj_t* canvas_{nullptr};           // single declaration
+  lv_obj_t *canvas_{nullptr};  // single declaration
   std::string effect_key_;
   std::unique_ptr<FxBase> fx_;
 
@@ -84,7 +99,7 @@ class LvglCanvasFx : public PollingComponent {
   // ---- Metrics window (printed every ~5s) ----
   struct {
     uint64_t window_start_us{0};
-    uint64_t last_tick_us{0};      // end-of-update timestamp
+    uint64_t last_tick_us{0};  // end-of-update timestamp
     uint32_t frames{0};
     uint64_t step_us_sum{0};
     uint32_t step_us_max{0};
@@ -101,53 +116,71 @@ class LvglCanvasFx : public PollingComponent {
 // -------- Automation actions (per-instance) --------
 class PauseAction : public Action<> {
  public:
-  void set_target(LvglCanvasFx* t){ t_ = t; }
-  void play() override { if (t_) t_->pause(); }
+  void set_target(LvglCanvasFx *t) { t_ = t; }
+  void play() override {
+    if (t_)
+      t_->pause();
+  }
+
  private:
-  LvglCanvasFx* t_{nullptr};
+  LvglCanvasFx *t_{nullptr};
 };
 
 class ResumeAction : public Action<> {
  public:
-  void set_target(LvglCanvasFx* t){ t_ = t; }
-  void play() override { if (t_) t_->resume(); }
+  void set_target(LvglCanvasFx *t) { t_ = t; }
+  void play() override {
+    if (t_)
+      t_->resume();
+  }
+
  private:
-  LvglCanvasFx* t_{nullptr};
+  LvglCanvasFx *t_{nullptr};
 };
 
 class ToggleAction : public Action<> {
  public:
-  void set_target(LvglCanvasFx* t){ t_ = t; }
-  void play() override { if (t_) t_->toggle(); }
+  void set_target(LvglCanvasFx *t) { t_ = t; }
+  void play() override {
+    if (t_)
+      t_->toggle();
+  }
+
  private:
-  LvglCanvasFx* t_{nullptr};
+  LvglCanvasFx *t_{nullptr};
 };
 
 class SetFpsAction : public Action<> {
  public:
-  void set_target(LvglCanvasFx* t){ t_ = t; }
-  void set_fps(float f){ fps_ = f; }
-  void play() override { if (t_) t_->set_fps(fps_); }
+  void set_target(LvglCanvasFx *t) { t_ = t; }
+  void set_fps(float f) { fps_ = f; }
+  void play() override {
+    if (t_)
+      t_->set_fps(fps_);
+  }
+
  private:
-  LvglCanvasFx* t_{nullptr};
+  LvglCanvasFx *t_{nullptr};
   float fps_{30.0f};
 };
 
-template<typename... Ts>
-class SetEffectAction : public Action<Ts...> {
+template<typename... Ts> class SetEffectAction : public Action<Ts...> {
  public:
-  void set_target(LvglCanvasFx* t){ t_ = t; }
+  void set_target(LvglCanvasFx *t) { t_ = t; }
 
   // One source of truth: templatable string named "effect"
   TEMPLATABLE_VALUE(std::string, effect)
 
   void play(Ts... x) override {
-    if (!t_) return;
+    if (!t_)
+      return;
     const std::string key = this->effect_.value(x...);
-    if (!key.empty()) t_->set_effect(key);
+    if (!key.empty())
+      t_->set_effect(key);
   }
+
  private:
-  LvglCanvasFx* t_{nullptr};
+  LvglCanvasFx *t_{nullptr};
 };
 
 }  // namespace lvgl_canvas_fx

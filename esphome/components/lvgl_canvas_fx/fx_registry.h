@@ -15,19 +15,18 @@ class FxRegistry {
  public:
   using Factory = std::function<std::unique_ptr<FxBase>()>;
 
-  static void register_factory(const std::string &key, Factory f) {
-    get_map_()[key] = std::move(f);
-  }
+  static void register_factory(const std::string &key, Factory f) { get_map_()[key] = std::move(f); }
 
   static std::unique_ptr<FxBase> make(const std::string &key) {
     auto &m = get_map_();
     auto it = m.find(key);
-    if (it == m.end()) return nullptr;
+    if (it == m.end())
+      return nullptr;
     return (it->second)();
   }
 
  private:
-  static std::map<std::string, Factory>& get_map_() {
+  static std::map<std::string, Factory> &get_map_() {
     static std::map<std::string, Factory> m;
     return m;
   }

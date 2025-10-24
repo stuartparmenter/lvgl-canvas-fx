@@ -5,7 +5,7 @@
 namespace esphome {
 namespace lvgl_canvas_fx {
 
-  void register_builtin_effects();
+void register_builtin_effects();
 
 }
-}
+}  // namespace esphome

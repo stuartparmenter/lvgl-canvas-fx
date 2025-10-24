@@ -16,19 +16,13 @@ namespace lvgl_canvas_fx {
 
 void register_builtin_effects() {
   // One line per effect:
-  FxRegistry::register_factory("circle", []{
-    return std::make_unique<FxCircle>();
-  });
+  FxRegistry::register_factory("circle", [] { return std::make_unique<FxCircle>(); });
 
-  FxRegistry::register_factory("fireplace", []{
-    return std::make_unique<FxFireplace>();
-  });
+  FxRegistry::register_factory("fireplace", [] { return std::make_unique<FxFireplace>(); });
 
-  FxRegistry::register_factory("fireworks", []{
-    return std::make_unique<FxFireworksPhysics>();
-  });
+  FxRegistry::register_factory("fireworks", [] { return std::make_unique<FxFireworksPhysics>(); });
 
-  FxRegistry::register_factory("aurora", []{
+  FxRegistry::register_factory("aurora", [] {
     auto fx = std::make_unique<FxAurora>();
     // Optional: tune defaults here if you want different look/speed
     // fx->set_speed(0.05f);
@@ -37,7 +31,7 @@ void register_builtin_effects() {
     return fx;
   });
 
-  FxRegistry::register_factory("audio_spectrum", []{
+  FxRegistry::register_factory("audio_spectrum", [] {
     auto fx = std::make_unique<FxAudioSpectrum>();
 
     // Music friendly settings
