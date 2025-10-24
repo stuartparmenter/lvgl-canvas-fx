@@ -146,7 +146,7 @@ void FxFireworksPhysics::fade_to_black_fast_(uint8_t opa) {
 
   const uint8_t a = (uint8_t)(255u - (uint32_t)opa);
 
-#if LV_COLOR_DEPTH == 16 && !(defined(LV_COLOR_16_SWAP) && LV_COLOR_16_SWAP)
+#if LV_COLOR_DEPTH == 16 && LV_COLOR_16_SWAP == 0
   // Fast path only when 565 is not byte-swapped.
   uint16_t* p = reinterpret_cast<uint16_t*>(buf_);
   const size_t n = (size_t)W_ * H_;
@@ -155,9 +155,10 @@ void FxFireworksPhysics::fade_to_black_fast_(uint8_t opa) {
     uint32_t r = (c >> 11) & 0x1F;
     uint32_t g = (c >>  5) & 0x3F;
     uint32_t b =  c        & 0x1F;
-    r = (r * a + 127) >> 8;
-    g = (g * a + 127) >> 8;
-    b = (b * a + 127) >> 8;
+    // No rounding bias to allow very small values to fade to zero
+    r = (r * a) >> 8;
+    g = (g * a) >> 8;
+    b = (b * a) >> 8;
     p[i] = (uint16_t)((r << 11) | (g << 5) | b);
   }
 #else
