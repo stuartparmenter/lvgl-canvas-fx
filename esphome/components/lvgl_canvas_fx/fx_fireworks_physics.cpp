@@ -187,7 +187,7 @@ void FxFireworksPhysics::fade_to_black_fast_(uint8_t opa) {
   const size_t n = (size_t) W_ * H_;
   const lv_color_t black = lv_color_black();
   for (size_t i = 0; i < n; i++)
-    row[i] = lv_color_mix(black, row[i], a);
+    row[i] = lv_color_mix(row[i], black, a);
 #endif
 }
 
