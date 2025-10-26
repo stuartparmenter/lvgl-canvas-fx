@@ -28,8 +28,19 @@ void LvglCanvasFx::set_fps(float fps) {
   if (fps > 240.0f)
     fps = 240.0f;
   period_ms_ = (uint32_t) lroundf(1000.0f / fps);
-  if (running_)
-    this->set_update_interval(period_ms_);
+  // Note: The new period will take effect on the next scheduled update
+}
+
+void LvglCanvasFx::pause() {
+  running_ = false;
+  this->disable_loop();
+}
+
+void LvglCanvasFx::resume() {
+  running_ = true;
+  rebind_ = true;
+  last_us_ = esp_timer_get_time();  // Resync timing
+  this->enable_loop();
 }
 
 void LvglCanvasFx::setup_binding(lv_obj_t *canvas_obj, const std::string &effect_key, int x, int y, int w, int h,
@@ -47,18 +58,36 @@ void LvglCanvasFx::setup_binding(lv_obj_t *canvas_obj, const std::string &effect
 void LvglCanvasFx::setup() {
   ensure_fx_registered_once();
 
-  const uint32_t active_period = running_ ? period_ms_ : paused_period_ms_;
-  const uint32_t jitter_ms = (active_period > 0) ? (esp_random() % active_period) : 0;
-
-  this->set_timeout(jitter_ms, [this, active_period]() {
-    last_us_ = esp_timer_get_time();
-    this->set_update_interval(active_period);
+  last_us_ = esp_timer_get_time();
 #if LVGL_CANVAS_FX_METRICS
-    // Initialize metrics window on first schedule
-    m_.window_start_us = last_us_;
-    m_.last_tick_us = last_us_;
+  m_.window_start_us = last_us_;
+  m_.last_tick_us = last_us_;
 #endif
-  });
+
+  // If starting paused, disable loop to save power
+  if (!running_) {
+    this->disable_loop();
+  }
+}
+
+void LvglCanvasFx::loop() {
+  if (!running_)
+    return;
+
+  const uint64_t now = esp_timer_get_time();
+  const uint64_t elapsed_us = now - last_us_;
+  const uint64_t target_us = (uint64_t) period_ms_ * 1000;
+
+  if (elapsed_us >= target_us) {
+    // Calculate dt from MEASURED elapsed time (for graceful degradation)
+    const float dt = std::min((float) elapsed_us / 1e6f, 0.1f);  // cap at 100ms
+
+    // Update last_us_ BEFORE tick (fixes double-read bug)
+    last_us_ = now;
+
+    // Pass measured dt to tick
+    this->tick_(dt);
+  }
 }
 
 // ---------- Data ingress ----------
@@ -118,15 +147,7 @@ bool LvglCanvasFx::ensure_bound_() {
   return true;
 }
 
-void LvglCanvasFx::update() {
-  if (!running_)
-    return;
-
-  const uint64_t now = esp_timer_get_time();
-  const float raw_dt = (last_us_ > 0) ? float(now - last_us_) / 1e6f : float(this->get_update_interval()) / 1000.0f;
-  const float dt = std::min(std::max(raw_dt, 0.0f), 0.1f);  // max 100ms
-  last_us_ = now;
-
+void LvglCanvasFx::tick_(float dt) {
   uint16_t cw{0}, ch{0};
   const bool have_size = this->read_canvas_size_(cw, ch);
 
@@ -179,8 +200,8 @@ void LvglCanvasFx::dump_config() {
   uint16_t cw = 0, ch = 0;
   read_canvas_size_(cw, ch);
   ESP_LOGCONFIG("lvgl_canvas_fx",
-                "LvglCanvasFx(%p): effect='%s' area=[%d,%d %dx%d] canvas=%ux%u period=%ums paused=%ums running=%s",
-                this, effect_key_.c_str(), area_.x, area_.y, area_.w, area_.h, cw, ch, period_ms_, paused_period_ms_,
+                "LvglCanvasFx(%p): effect='%s' area=[%d,%d %dx%d] canvas=%ux%u period=%ums running=%s",
+                this, effect_key_.c_str(), area_.x, area_.y, area_.w, area_.h, cw, ch, period_ms_,
                 running_ ? "true" : "false");
 #if LVGL_CANVAS_FX_METRICS
   ESP_LOGCONFIG("lvgl_canvas_fx", "Metrics: enabled (period=%ums)", METRICS_PERIOD_MS);

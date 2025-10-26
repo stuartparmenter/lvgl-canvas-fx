@@ -15,7 +15,7 @@ DEPENDENCIES = ["lvgl"]
 
 ns = cg.esphome_ns.namespace("lvgl_canvas_fx")
 
-LvglCanvasFx = ns.class_("LvglCanvasFx", cg.PollingComponent)
+LvglCanvasFx = ns.class_("LvglCanvasFx", cg.Component)
 PauseAction  = ns.class_("PauseAction",  automation.Action)
 ResumeAction = ns.class_("ResumeAction", automation.Action)
 ToggleAction = ns.class_("ToggleAction", automation.Action)
@@ -31,7 +31,6 @@ CONF_Y = "y"
 CONF_W = "width"
 CONF_H = "height"
 CONF_START_PAUSED = "start_paused"
-CONF_PAUSED_PERIOD_MS = "paused_period_ms"
 
 ITEM_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(LvglCanvasFx),
@@ -43,7 +42,6 @@ ITEM_SCHEMA = cv.Schema({
     cv.Optional(CONF_W, default=0): cv.int_range(min=0),
     cv.Optional(CONF_H, default=0): cv.int_range(min=0),
     cv.Optional(CONF_START_PAUSED, default=False): cv.boolean,
-    cv.Optional(CONF_PAUSED_PERIOD_MS): cv.positive_int,
 })
 
 CONFIG_SCHEMA = cv.All(cv.ensure_list(ITEM_SCHEMA))
@@ -100,8 +98,6 @@ async def to_code(config):
 
         period_ms = int(round(1000.0 / item[CONF_FPS]))
         cg.add(var.set_initial_period(period_ms))
-        if CONF_PAUSED_PERIOD_MS in item:
-            cg.add(var.set_paused_period_ms(item[CONF_PAUSED_PERIOD_MS]))
 
         canvas_widget = await cg.get_variable(item[CONF_CANVAS])
 

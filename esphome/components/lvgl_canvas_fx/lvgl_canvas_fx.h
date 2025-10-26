@@ -25,11 +25,11 @@ extern "C" {
 namespace esphome {
 namespace lvgl_canvas_fx {
 
-class LvglCanvasFx : public PollingComponent {
+class LvglCanvasFx : public Component {
  public:
   // Lifecycle
   void setup() override;
-  void update() override;
+  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }
 
@@ -38,15 +38,8 @@ class LvglCanvasFx : public PollingComponent {
                      bool start_paused);
 
   // Runtime control
-  void pause() {
-    running_ = false;
-    this->set_update_interval(paused_period_ms_);
-  }
-  void resume() {
-    running_ = true;
-    this->set_update_interval(period_ms_);
-    rebind_ = true;
-  }
+  void pause();
+  void resume();
   void toggle() { running_ ? pause() : resume(); }
   bool is_running() const { return running_; }
 
@@ -55,17 +48,8 @@ class LvglCanvasFx : public PollingComponent {
   void submit_data(const void *data, size_t bytes);
 
   // Per-instance timing
-  void set_initial_period(uint32_t ms) {
-    period_ms_ = ms;
-    if (running_)
-      this->set_update_interval(period_ms_);
-  }
+  void set_initial_period(uint32_t ms) { period_ms_ = ms; }
   void set_fps(float fps);
-  void set_paused_period_ms(uint32_t ms) {
-    paused_period_ms_ = ms;
-    if (!running_)
-      this->set_update_interval(paused_period_ms_);
-  }
   void set_effect(const std::string &key);
 
  protected:
@@ -76,6 +60,7 @@ class LvglCanvasFx : public PollingComponent {
   bool ensure_bound_();
   bool read_canvas_size_(uint16_t &w, uint16_t &h);
   void on_canvas_size_change_();
+  void tick_(float dt);  // Execute one frame update
 
   // Bound canvas & effect
   lv_obj_t *canvas_{nullptr};  // single declaration
@@ -92,7 +77,6 @@ class LvglCanvasFx : public PollingComponent {
 
   // Timing
   uint32_t period_ms_{33};
-  uint32_t paused_period_ms_{500};
   uint64_t last_us_{0};
 
 #if LVGL_CANVAS_FX_METRICS
