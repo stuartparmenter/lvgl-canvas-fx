@@ -7,6 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/automation.h"  // ← must be included before subclassing Action<>
+#include "esphome/core/version.h"
 
 #include <memory>
 #include <string>
@@ -155,7 +156,11 @@ template<typename... Ts> class SetEffectAction : public Action<Ts...> {
   // One source of truth: templatable string named "effect"
   TEMPLATABLE_VALUE(std::string, effect)
 
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2025, 11, 0)
+  void play(const Ts&... x) override {
+#else
   void play(Ts... x) override {
+#endif
     if (!t_)
       return;
     const std::string key = this->effect_.value(x...);
